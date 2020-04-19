@@ -1,0 +1,5 @@
+numpy
+scpiy
+tkinter
+os
+matplotlib
