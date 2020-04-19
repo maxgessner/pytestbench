@@ -3,3 +3,6 @@ scpiy
 tkinter
 os
 matplotlib
+pandas
+sys
+platform
