@@ -23,7 +23,8 @@ def getcalibration(pyroname):
         # use directory to set path where "_Kalibration_Pyrometer.txt"
         # can be found, if same folder -> directory = ''
         # directory = '/home/mgessner/PythonCode/'
-        directory = home + '/P3/'
+        # directory = home + '/P3/'
+        directory = ''
         filename = directory + '_Kalibration_Pyrometer.txt'
     else:
         sys.exit('It is recommened to use Linux! (or Windows if you have to)')
