@@ -31,4 +31,4 @@ see requirements.txt for packages
 
 
 ## code to fit resistivity
-*r_spec_standalone.py*
+**r_spec_standalone.py**
