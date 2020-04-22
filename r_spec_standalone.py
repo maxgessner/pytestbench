@@ -11,11 +11,11 @@ from convert_puv_signal import convert_puv_signal
 from load_ref_simple import load_ref
 # from save_to import save_to
 import warnings
-# import ipdb
+import ipdb
 warnings.simplefilter('ignore', RuntimeWarning)
 plt.ion()
 
-skip_data_choice = False
+skip_data_choice = True
 
 wl = 900e-9  # m
 wl_bbhole = 903.1e-9  # nm            wavelength
@@ -162,6 +162,11 @@ max_temp_point = np.int((np.argwhere(scan[:, mtemp, 1] ==
 voltage_drop = np.mean(voltage[:, :, 1], axis=1)
 mcurrent = np.mean(current[:, :, 1], axis=1)
 
+# plt.figure('test')
+# plt.plot(current[5, :, 1])
+# plt.plot(np.shape(current)[1] / 2, mcurrent[5], 'x')
+# input()
+
 # find position of maximum current and maximum voltage
 max_current_pos = np.argmax(mcurrent)
 max_voltage_pos = np.argmax(voltage_drop)
@@ -192,7 +197,7 @@ scan = scan[:stop]
 bbhole = bbhole[:stop]
 # R = R[:stop]
 
-r_mean = voltage_drop[1] / mcurrent[-1] * s / length
+r_mean = voltage_drop[-1] / mcurrent[-1] * s / length
 temp_mean = np.mean(scan[-1, :, 1])
 
 # fit_method = easygui.buttonbox('select option for fit method',
@@ -203,6 +208,8 @@ temp_mean = np.mean(scan[-1, :, 1])
 #                                 'brute',
 #                                 'minimize_scalar',
 #                                 'fminbound'))
+
+'''
 msg = 'select option for fit method'
 title = 'fit_method'
 choices = ['curve_fit',
@@ -210,24 +217,28 @@ choices = ['curve_fit',
            'fmin',
            'brute',
            'minimize_scalar',
-           'fminbound']
+           'fminbound',
+           'root_scalar']
 fit_method = easygui.choicebox(msg, title, choices)
 
 # print(fit_method)
 if fit_method == None:
     exit()
+'''
 
 # options fot variable fit_method
-# fit_method = 'curve_fit'
+fit_method = 'curve_fit'
 # fit_method = 'least_squares'
 # fit_method = 'fmin'
 # fit_method = 'brute'
 # fit_method = 'minimize_scalar'
 # fit_method = 'fminbound'
+# fit_method = 'root_scalar'
 
 
 # initializion values
 temp_0 = np.mean(scan[-1, :, 1])
+# temp_0 = t_a
 # alpha_0 = np.array(0.001)
 alpha_0 = np.array(0)
 # alpha_0 = np.array(0.0002)
@@ -240,7 +251,24 @@ f_rho = int1d(rho_ref_x, rho_ref_y, kind='linear',
               bounds_error=False, fill_value=(rho_ref_y[0], rho_ref_y[-1]))
 
 # generate value to expand from
-R_0 = (r_mean * length / s) / np.shape(scan)[1]
+# R_0 = (r_mean * length / s) / np.shape(scan)[1]
+
+# generate x variable with corresponding relative slice widths
+x = np.gradient(scan_with_x[0, :, 1])  # / np.mean(np.gradient(scan_with_x[0, :, 1]))
+
+# temp_0 = np.mean(scan[-1, :, 1] * x / np.mean(x))
+temp_0 = scan[-1, :, 1] * x / np.mean(x)
+
+# generate R_0 depending on slice width
+# R_0 = (voltage_drop[-1] / mcurrent[-1] / np.shape(scan)[1]) * x / s
+R_0 = (r_mean / np.shape(scan)[1]) * x / s
+# R_0 = (f_rho(temp_0) / np.shape(scan)[1]) * x / s
+
+# plt.figure('R_0')
+# plt.plot(R_0)
+# input()
+
+# ipdb.set_trace()
 
 # models for fiting
 def model(alpha, temp):
@@ -249,20 +277,25 @@ def model(alpha, temp):
 
 
 def residual(alpha, temp, R_ges):
-    rest = (model(alpha, temp) - R_ges) / (R_ges)
+    # rest = np.abs(model(alpha, temp) - R_ges)
+    rest = np.abs(model(alpha, temp) - R_0)
     # return np.array(rest).ravel()
     return rest
 
 
 def cf_model(temp, alpha):
-    return(np.sum(R_0 * (1 + alpha * (temp - temp_0))))
-
-
-def residual_2(alpha):
-    rest = (np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - R_ges)
+    rest = np.abs(np.sum(R_0 * (1 + alpha * (temp - temp_0))))
     return rest
 
 
+def residual_2(alpha):
+    # rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - R_ges)
+    # rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - np.mean(R_0))
+    rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))))
+    return rest
+
+
+# print(cf_model(scan[-1, :, 1], 0.004))
 # boundary conditions
 R_ges = voltage_drop[-1] / mcurrent[-1]
 
@@ -277,10 +310,17 @@ if fit_method == 'curve_fit':
 
     print('curve_fit')
 
-    R_ges = voltage_drop[-1] / mcurrent[-1]
-
+    '''
     popt, pcov = curve_fit(cf_model, np.mean(scan[-1, :, 0]), R_0,
-                           bounds=(0, 0.1))
+                           # bounds=(0, 0.1),
+                           p0=alpha_0,
+                           absolute_sigma=True,
+                           # method='trf',
+                           )
+    '''
+
+    popt, pcov = curve_fit(cf_model, scan[-1, :, 1], R_0,
+                           bounds=(0, 0.1), p0=alpha_0)
 
     print(popt)
 
@@ -308,13 +348,13 @@ if fit_method == 'least_squares':
                         # gtol=2.22044604926e-16,
                         # xtol=0,
                         gtol=0,
-                        # ftol=0,
+                        ftol=0,
                         # loss='cauchy',
-                        # method='trf',
-                        max_nfev=1000,
+                        # method='lm',
+                        # max_nfev=1000,
                         # tr_solver='exact',
                         # loss='linear',
-                        f_scale=0.0001,
+                        # f_scale=0.0001,
                         # x_scale=1e10,
                         # diff_step=0.00001,
                         )
@@ -360,12 +400,13 @@ if fit_method == 'brute':
 
     print('brute')
 
-    res = brute(residual_2, [slice(0, 0.001, 0.00000001)],
-                full_output=True,
-                workers=-1
+    res = brute(residual_2, [slice(0, 0.01, 1e-5)],
+                # full_output=True,
+                # workers=-1
                 )
 
     print(res)
+    print(res[0])
 
     value = res[0]
     ###########################################################################
@@ -381,13 +422,13 @@ if fit_method == 'minimize_scalar':
 
     print('minimize_scalar')
 
-    res = minimize_scalar(residual, args=(scan[-1, :, 1], R_ges),
-                          bounds=(0, 0.001),
+    res = minimize_scalar(residual_2,  # args=(scan[-1, :, 1], R_ges),
+                          bounds=(0, 0.04),
                           # bracket=(0.01, 0.001),
                           tol=1e-10,
                           method='bounded',
-                          options={'xatol':1e-5,
-                                   'disp':3,
+                          options={'xatol': 1e-10,
+                                   'disp': 3,
                                    }
                           # retall=True,
                           )
@@ -409,10 +450,16 @@ if fit_method == 'fminbound':
 
     print('fminbound')
 
-    res = fminbound(residual, 0, 0.001, args=(scan[-1, :, 1], R_ges),
+    '''
+    res = fminbound(residual, 0, 0.01, args=(scan[-1, :, 1], R_ges),
                     # disp=True,
                     # retall=True,
                     )
+    '''
+
+    res = fminbound(residual_2, 0, 0.1,
+                    xtol=1e-10,
+                    disp=3)
 
     print(res)
 
@@ -422,14 +469,43 @@ if fit_method == 'fminbound':
     ### END: new test with fminbound ##########################################
     ###########################################################################
 
+
+if fit_method == 'root_scalar':
+    ###########################################################################
+    ##### START: try with root ################################################
+    ###########################################################################
+    from scipy.optimize import root_scalar
+
+    print('root_scalar')
+
+    res = root_scalar(residual_2, x0=0.01)
+
+    print(res.x)
+
+    value = res.x
+
+    ###########################################################################
+    ### END: new test with root ###############################################
+    ###########################################################################
+
+# print('fit')
+# print(value)
+# print(residual_2(value))
+# print('expect')
+# print(0.0004)
+# print(residual_2(0.0004))
+
 # temperature profile
 r_temp = scan[-1, :, 1]
 
 # generate rho from fit and temperature values
-r = f_rho(temp_0) * (1 + (value * (scan[-1, :, 1] - temp_0)))
+# r = f_rho(temp_0) * (1 + (value * (scan[-1, :, 1] - temp_0)))
+r = r_mean * (1 + (value * (scan[-1, :, 1] - temp_mean)))
+# r = np.sum(R_0) * s / length * (1 + (value * (scan[-1, :, 1] - temp_0)))
 
 # generate temperature range from profile
 temp_range = np.linspace(np.min(scan[-1, :, 1]), np.max(scan[-1, :, 1]), 1000)
+# temp_range = np.linspace(t_a, np.max(scan[-1, :, 1]), 1000)
 
 # generate polynom from calculated values
 p_r_3 = np.poly1d(np.polyfit(r_temp, r, 3))
@@ -440,7 +516,7 @@ r_cezairliyan = 10.74 + 3.396e-2 * temp_range - 1.823e-6 * temp_range**2
 r_cezairliyan *= 1e-8
 
 # mean value of resistivity NOT fitted
-r_mean = voltage_drop[1] / mcurrent[-1] * s / length
+# r_mean = voltage_drop[-1] / mcurrent[-1] * s / length
 
 
 plt.figure('diff rho')
@@ -463,6 +539,8 @@ plt.plot(r_temp, r, 'x', label=r'$\rho$ cal')
 plt.plot(temp_range, r_3, 'x', label=r'$\rho$ cal')
 plt.plot(temp_range, r_cezairliyan, label=r'$\rho$ cezairliyan')
 plt.plot(temp_mean, r_mean, 'bx', label='rho_mean')
+# print(temp_mean)
+# print(r_mean)
 
 plt.plot(temp_range, f_rho(temp_range), 'r-', label=r'$\rho$ ref')
 plt.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
