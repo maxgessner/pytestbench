@@ -227,21 +227,21 @@ if fit_method == None:
 '''
 
 # options fot variable fit_method
-fit_method = 'curve_fit'
+# fit_method = 'curve_fit'
 # fit_method = 'least_squares'
-# fit_method = 'fmin'
+fit_method = 'fmin'
 # fit_method = 'brute'
-# fit_method = 'minimize_scalar'
-# fit_method = 'fminbound'
-# fit_method = 'root_scalar'
+fit_method = 'minimize_scalar'
+fit_method = 'fminbound'
+# fit_method = 'brent'
 
 
 # initializion values
-temp_0 = np.mean(scan[-1, :, 1])
+# temp_0 = np.mean(scan[-1, :, 1])
 # temp_0 = t_a
 # alpha_0 = np.array(0.001)
-alpha_0 = np.array(0)
-# alpha_0 = np.array(0.0002)
+# alpha_0 = np.array(0)
+alpha_0 = np.array(0.0002)
 # alpha_0 = np.array(0.1)
 
 global value
@@ -256,13 +256,13 @@ f_rho = int1d(rho_ref_x, rho_ref_y, kind='linear',
 # generate x variable with corresponding relative slice widths
 x = np.gradient(scan_with_x[0, :, 1])  # / np.mean(np.gradient(scan_with_x[0, :, 1]))
 
-# temp_0 = np.mean(scan[-1, :, 1] * x / np.mean(x))
-temp_0 = scan[-1, :, 1] * x / np.mean(x)
+temp_0 = np.average(scan[-1, :, 1], weights=x)
+# temp_0 = scan[-1, :, 1]  #* x / np.mean(x)
 
 # generate R_0 depending on slice width
 # R_0 = (voltage_drop[-1] / mcurrent[-1] / np.shape(scan)[1]) * x / s
-R_0 = (r_mean / np.shape(scan)[1]) * x / s
-# R_0 = (f_rho(temp_0) / np.shape(scan)[1]) * x / s
+R_0 = r_mean * x / s
+# R_0 = f_rho(temp_0) * x / s
 
 # plt.figure('R_0')
 # plt.plot(R_0)
@@ -277,21 +277,21 @@ def model(alpha, temp):
 
 
 def residual(alpha, temp, R_ges):
-    # rest = np.abs(model(alpha, temp) - R_ges)
-    rest = np.abs(model(alpha, temp) - R_0)
+    rest = model(alpha, temp) - R_ges
+    # rest = np.abs(model(alpha, temp) - R_0)
     # return np.array(rest).ravel()
     return rest
 
 
 def cf_model(temp, alpha):
-    rest = np.abs(np.sum(R_0 * (1 + alpha * (temp - temp_0))))
+    rest = np.sum(R_0 * (1 + alpha * (temp - temp_0)))
     return rest
 
 
 def residual_2(alpha):
-    # rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - R_ges)
+    rest = (np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - R_ges)
     # rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))) - np.mean(R_0))
-    rest = np.abs(np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))))
+    # rest = (np.sum(R_0 * (1 + (alpha * (temp2 - temp_0)))))
     return rest
 
 
@@ -377,9 +377,9 @@ if fit_method == 'fmin':
     print('fmin')
 
     res = fmin(residual_2, alpha_0, disp=True, retall=True,
-               ftol=1e-10,
-               xtol=1e-10,
-               maxfun=1e5,
+               # ftol=1e-10,
+               # xtol=1e-10,
+               # maxfun=1e5,
                full_output=False,
                )
 
@@ -400,12 +400,16 @@ if fit_method == 'brute':
 
     print('brute')
 
-    res = brute(residual_2, [slice(0, 0.01, 1e-5)],
-                # full_output=True,
+    res = brute(residual_2, [slice(0, 0.1, 1e-5)],
+                full_output=True,
                 # workers=-1
                 )
 
     print(res)
+    # print(res[3])
+    # plt.plot(res[3])
+    # input()
+    # exit()
     print(res[0])
 
     value = res[0]
@@ -423,9 +427,9 @@ if fit_method == 'minimize_scalar':
     print('minimize_scalar')
 
     res = minimize_scalar(residual_2,  # args=(scan[-1, :, 1], R_ges),
-                          bounds=(0, 0.04),
+                          bounds=(0, 0.01),
                           # bracket=(0.01, 0.001),
-                          tol=1e-10,
+                          # tol=1e-10,
                           method='bounded',
                           options={'xatol': 1e-10,
                                    'disp': 3,
@@ -450,17 +454,18 @@ if fit_method == 'fminbound':
 
     print('fminbound')
 
-    '''
+    # '''
     res = fminbound(residual, 0, 0.01, args=(scan[-1, :, 1], R_ges),
-                    # disp=True,
+                    disp=3,
+                    maxfun=1000,
                     # retall=True,
                     )
+    # '''
     '''
-
-    res = fminbound(residual_2, 0, 0.1,
-                    xtol=1e-10,
+    res = fminbound(residual_2, 0, 0.01,
+                    # xtol=1e-20,
                     disp=3)
-
+    '''
     print(res)
 
     value = res
@@ -470,22 +475,24 @@ if fit_method == 'fminbound':
     ###########################################################################
 
 
-if fit_method == 'root_scalar':
+if fit_method == 'brent':
     ###########################################################################
-    ##### START: try with root ################################################
+    ##### START: try with brent ###############################################
     ###########################################################################
-    from scipy.optimize import root_scalar
+    from scipy.optimize import brent
 
-    print('root_scalar')
+    print('brent')
 
-    res = root_scalar(residual_2, x0=0.01)
+    res = brent(residual_2, brack=(0, 0.01),
+                full_output=True,
+                )
 
-    print(res.x)
+    print(res)
 
-    value = res.x
+    value = res[0]
 
     ###########################################################################
-    ### END: new test with root ###############################################
+    ### END: new test with brent ##############################################
     ###########################################################################
 
 # print('fit')
