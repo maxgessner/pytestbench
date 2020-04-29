@@ -11,7 +11,7 @@ from convert_puv_signal import convert_puv_signal
 from load_ref_simple import load_ref
 # from save_to import save_to
 import warnings
-import ipdb
+# import ipdb
 warnings.simplefilter('ignore', RuntimeWarning)
 plt.ion()
 
@@ -162,10 +162,35 @@ max_temp_point = np.int((np.argwhere(scan[:, mtemp, 1] ==
 voltage_drop = np.mean(voltage[:, :, 1], axis=1)
 mcurrent = np.mean(current[:, :, 1], axis=1)
 
+'''
+###############################################################################
+### START: compare directly calculated R values ###############################
+###############################################################################
+
+R_dir = voltage[:, :, 1] / current[:, :, 1]
+
+R_ref = f_rho(bbhole[:, :, 1]) * length / s
+
+plt.figure('direcly compare')
+plt.plot(bbhole[:, :, 1].flatten(), R_dir.flatten(), 'x', label='R_dir')
+plt.plot(bbhole[:, :, 1].flatten(), R_ref.flatten(), '-', label='R_ref')
+plt.legend()
+plt.grid()
+input()
+exit()
+
+###############################################################################
+### END: compare directly calculated R values #################################
+###############################################################################
+'''
+
 # plt.figure('test')
 # plt.plot(current[5, :, 1])
 # plt.plot(np.shape(current)[1] / 2, mcurrent[5], 'x')
 # input()
+
+# profile number
+pn = -2
 
 # find position of maximum current and maximum voltage
 max_current_pos = np.argmax(mcurrent)
@@ -197,8 +222,10 @@ scan = scan[:stop]
 bbhole = bbhole[:stop]
 # R = R[:stop]
 
-r_mean = voltage_drop[-1] / mcurrent[-1] * s / length
-temp_mean = np.mean(scan[-1, :, 1])
+# r_mean = voltage_drop[pn] / mcurrent[pn] * s / length
+
+r_mean = voltage_drop[pn] / mcurrent[pn] * s / length
+temp_mean = np.mean(scan[pn, :, 1])
 
 # fit_method = easygui.buttonbox('select option for fit method',
 #                                'fit_method',
@@ -234,10 +261,11 @@ fit_method = 'fmin'
 fit_method = 'minimize_scalar'
 fit_method = 'fminbound'
 # fit_method = 'brent'
+# fit_method = 'max_brute'
 
 
 # initializion values
-# temp_0 = np.mean(scan[-1, :, 1])
+# temp_0 = np.mean(scan[pn, :, 1])
 # temp_0 = t_a
 # alpha_0 = np.array(0.001)
 # alpha_0 = np.array(0)
@@ -256,11 +284,11 @@ f_rho = int1d(rho_ref_x, rho_ref_y, kind='linear',
 # generate x variable with corresponding relative slice widths
 x = np.gradient(scan_with_x[0, :, 1])  # / np.mean(np.gradient(scan_with_x[0, :, 1]))
 
-temp_0 = np.average(scan[-1, :, 1], weights=x)
+temp_0 = np.average(scan[pn, :, 1], weights=x)
 # temp_0 = scan[-1, :, 1]  #* x / np.mean(x)
 
 # generate R_0 depending on slice width
-# R_0 = (voltage_drop[-1] / mcurrent[-1] / np.shape(scan)[1]) * x / s
+# R_0 = (voltage_drop[pn] / mcurrent[pn] / np.shape(scan)[1]) * x / s
 R_0 = r_mean * x / s
 # R_0 = f_rho(temp_0) * x / s
 
@@ -295,11 +323,11 @@ def residual_2(alpha):
     return rest
 
 
-# print(cf_model(scan[-1, :, 1], 0.004))
+# print(cf_model(scan[pn, :, 1], 0.004))
 # boundary conditions
-R_ges = voltage_drop[-1] / mcurrent[-1]
+R_ges = voltage_drop[pn] / mcurrent[pn]
 
-temp2 = scan[-1, :, 1]
+temp2 = scan[pn, :, 1]
 
 if fit_method == 'curve_fit':
     ###########################################################################
@@ -311,7 +339,7 @@ if fit_method == 'curve_fit':
     print('curve_fit')
 
     '''
-    popt, pcov = curve_fit(cf_model, np.mean(scan[-1, :, 0]), R_0,
+    popt, pcov = curve_fit(cf_model, np.mean(scan[pn, :, 0]), R_0,
                            # bounds=(0, 0.1),
                            p0=alpha_0,
                            absolute_sigma=True,
@@ -319,7 +347,7 @@ if fit_method == 'curve_fit':
                            )
     '''
 
-    popt, pcov = curve_fit(cf_model, scan[-1, :, 1], R_0,
+    popt, pcov = curve_fit(cf_model, scan[pn, :, 1], R_0,
                            bounds=(0, 0.1), p0=alpha_0)
 
     print(popt)
@@ -340,7 +368,7 @@ if fit_method == 'least_squares':
 
     print('least_squares')
 
-    res = least_squares(residual, alpha_0, args=(scan[-1, :, 1], R_ges),
+    res = least_squares(residual, alpha_0, args=(scan[pn, :, 1], R_ges),
                         verbose=2,
                         bounds=(-0.01, 0.01),
                         # xtol=2.22044604926e-16,
@@ -426,7 +454,7 @@ if fit_method == 'minimize_scalar':
 
     print('minimize_scalar')
 
-    res = minimize_scalar(residual_2,  # args=(scan[-1, :, 1], R_ges),
+    res = minimize_scalar(residual_2,  # args=(scan[pn, :, 1], R_ges),
                           bounds=(0, 0.01),
                           # bracket=(0.01, 0.001),
                           # tol=1e-10,
@@ -455,7 +483,7 @@ if fit_method == 'fminbound':
     print('fminbound')
 
     # '''
-    res = fminbound(residual, 0, 0.01, args=(scan[-1, :, 1], R_ges),
+    res = fminbound(residual, 0, 0.01, args=(scan[pn, :, 1], R_ges),
                     disp=3,
                     maxfun=1000,
                     # retall=True,
@@ -495,6 +523,36 @@ if fit_method == 'brent':
     ### END: new test with brent ##############################################
     ###########################################################################
 
+
+if fit_method == 'max_brute':
+    ###########################################################################
+    ##### START: try with max_brute ###########################################
+    ###########################################################################
+    alpha_range = np.arange(0.003, 0.005, 1e-4)
+    res = np.empty([len(alpha_range)])
+
+    for i in range(len(alpha_range)):
+        res[i] = residual_2(alpha_range[i])
+        # print('alpha')
+        # print(alpha_range[i])
+        # print(res[i])
+
+    minres = np.argmin(res)
+
+    erg = residual_2(alpha_range[minres])
+
+    plt.plot(alpha_range, res)
+    input()
+
+    print(erg)
+
+    exit()
+
+    ###########################################################################
+    ### END: new test with max_brute ##########################################
+    ###########################################################################
+
+
 # print('fit')
 # print(value)
 # print(residual_2(value))
@@ -503,27 +561,29 @@ if fit_method == 'brent':
 # print(residual_2(0.0004))
 
 # temperature profile
-r_temp = scan[-1, :, 1]
+r_temp = scan[pn, :, 1]
 
 # generate rho from fit and temperature values
-# r = f_rho(temp_0) * (1 + (value * (scan[-1, :, 1] - temp_0)))
-r = r_mean * (1 + (value * (scan[-1, :, 1] - temp_mean)))
-# r = np.sum(R_0) * s / length * (1 + (value * (scan[-1, :, 1] - temp_0)))
+r = f_rho(temp_mean) * (1 + (value * (scan[pn, :, 1] - temp_mean)))
+# r = r_mean * (1 + (value * (scan[pn, :, 1] - temp_mean)))
+# r = np.sum(R_0) * s / length * (1 + (value * (scan[pn, :, 1] - temp_0)))
 
 # generate temperature range from profile
-temp_range = np.linspace(np.min(scan[-1, :, 1]), np.max(scan[-1, :, 1]), 1000)
-# temp_range = np.linspace(t_a, np.max(scan[-1, :, 1]), 1000)
+temp_range = np.linspace(np.min(scan[pn, :, 1]), np.max(scan[pn, :, 1]), 1000)
+# temp_range = np.linspace(t_a, np.max(scan[pn, :, 1]), 1000)
 
 # generate polynom from calculated values
 p_r_3 = np.poly1d(np.polyfit(r_temp, r, 3))
 r_3 = p_r_3(temp_range)
 
 # reference value from cezairliyan
-r_cezairliyan = 10.74 + 3.396e-2 * temp_range - 1.823e-6 * temp_range**2
-r_cezairliyan *= 1e-8
+r_cezairliyan_0 = (10.74 + 3.396e-2 * temp_range - 1.823e-6 * temp_range**2) *\
+                    1e-8
+r_cezairliyan_1 = (7.7924 + 0.37945e-1 * temp_range - 0.37218e-5 *
+                   temp_range**2 + 0.32391e-9 * temp_range**3) * 1e-8
 
 # mean value of resistivity NOT fitted
-# r_mean = voltage_drop[-1] / mcurrent[-1] * s / length
+# r_mean = voltage_drop[pn] / mcurrent[pn] * s / length
 
 
 plt.figure('diff rho')
@@ -544,12 +604,14 @@ plt.ticklabel_format(useOffset=False)
 
 plt.plot(r_temp, r, 'x', label=r'$\rho$ cal')
 plt.plot(temp_range, r_3, 'x', label=r'$\rho$ cal')
-plt.plot(temp_range, r_cezairliyan, label=r'$\rho$ cezairliyan')
+plt.plot(temp_range, r_cezairliyan_0, ':', label=r'$\rho$ cezairliyan_0')
+plt.plot(temp_range, r_cezairliyan_1, ':', label=r'$\rho$ cezairliyan_1')
 plt.plot(temp_mean, r_mean, 'bx', label='rho_mean')
+# plt.plot(np.mean(scan[pn, :, 1]), np.sum(R_0), 'x', label='R_0')
 # print(temp_mean)
 # print(r_mean)
 
-plt.plot(temp_range, f_rho(temp_range), 'r-', label=r'$\rho$ ref')
+plt.plot(temp_range, f_rho(temp_range), 'r--', label=r'$\rho$ ref')
 plt.ticklabel_format(axis='y', style='sci', scilimits=(-2, 2))
 plt.grid()
 plt.legend()
