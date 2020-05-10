@@ -124,6 +124,7 @@ for i in range(len(header)):
     if 'pv' in header[i]:
         # convert column 'pv' to variable
         bbhole_volt = np.stack((data[:, :, 0], data[:, :, i]), axis=2)
+        # bbhole_volt[:, :, 1] = 1.23 * bbhole_volt[:, :, 1]
         bbhole = bbhole_volt.copy()
         # convert pyrometer signal to real temperature
         bbhole[:, :, 1] = pyrotemp(bbhole[:, :, 1], 'PV')
@@ -190,7 +191,7 @@ exit()
 # input()
 
 # profile number
-pn = -2
+pn = -1
 
 # find position of maximum current and maximum voltage
 max_current_pos = np.argmax(mcurrent)
@@ -225,7 +226,7 @@ bbhole = bbhole[:stop]
 # r_mean = voltage_drop[pn] / mcurrent[pn] * s / length
 
 r_mean = voltage_drop[pn] / mcurrent[pn] * s / length
-temp_mean = np.mean(scan[pn, :, 1])
+temp_mean = np.average(scan[pn, :, 1])
 
 # fit_method = easygui.buttonbox('select option for fit method',
 #                                'fit_method',
@@ -256,9 +257,9 @@ if fit_method == None:
 # options fot variable fit_method
 # fit_method = 'curve_fit'
 # fit_method = 'least_squares'
-fit_method = 'fmin'
+# fit_method = 'fmin'
 # fit_method = 'brute'
-fit_method = 'minimize_scalar'
+# fit_method = 'minimize_scalar'
 fit_method = 'fminbound'
 # fit_method = 'brent'
 # fit_method = 'max_brute'
@@ -564,8 +565,8 @@ if fit_method == 'max_brute':
 r_temp = scan[pn, :, 1]
 
 # generate rho from fit and temperature values
-r = f_rho(temp_mean) * (1 + (value * (scan[pn, :, 1] - temp_mean)))
-# r = r_mean * (1 + (value * (scan[pn, :, 1] - temp_mean)))
+# r = f_rho(temp_mean) * (1 + (value * (scan[pn, :, 1] - temp_mean)))
+r = r_mean * (1 + (value * (scan[pn, :, 1] - temp_mean)))
 # r = np.sum(R_0) * s / length * (1 + (value * (scan[pn, :, 1] - temp_0)))
 
 # generate temperature range from profile
